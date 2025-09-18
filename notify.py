@@ -1,7 +1,7 @@
 import os
 import smtplib
-from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.header import Header
 from typing import Literal
 
 import httpx
@@ -9,6 +9,11 @@ import httpx
 
 class NotificationKit:
 	def __init__(self):
+		# 每次调用时重新读取环境变量，确保能获取到最新的配置
+		self._reload_config()
+
+	def _reload_config(self):
+		"""重新加载配置"""
 		self.email_user: str = os.getenv('EMAIL_USER', '')
 		self.email_pass: str = os.getenv('EMAIL_PASS', '')
 		self.email_to: str = os.getenv('EMAIL_TO', '')
@@ -19,21 +24,30 @@ class NotificationKit:
 		self.weixin_webhook = os.getenv('WEIXIN_WEBHOOK')
 
 	def send_email(self, title: str, content: str, msg_type: Literal['text', 'html'] = 'text'):
+		# 发送前重新加载配置，确保获取最新的环境变量
+		self._reload_config()
+
 		if not self.email_user or not self.email_pass or not self.email_to:
 			raise ValueError('Email configuration not set')
 
-		msg = MIMEMultipart()
-		msg['From'] = f'AnyRouter Assistant <{self.email_user}>'
-		msg['To'] = self.email_to
-		msg['Subject'] = title
 
-		body = MIMEText(content, msg_type, 'utf-8')
-		msg.attach(body)
+		# 确保内容不为空
+		if not content or len(content.strip()) == 0:
+			content = "邮件内容为空，这是一个测试消息。"
+
+		# 使用MIMEText直接创建邮件，而不是MIMEMultipart
+		# 修复Content-Type问题：确保msg_type为'plain'或'html'
+		content_type = 'plain' if msg_type == 'text' else msg_type
+		msg = MIMEText(content, content_type, 'utf-8')
+		msg['From'] = Header(f'AnyRouter Assistant <{self.email_user}>', 'utf-8')
+		msg['To'] = Header(self.email_to, 'utf-8')
+		msg['Subject'] = Header(title, 'utf-8')
 
 		smtp_server = f'smtp.{self.email_user.split("@")[1]}'
+
 		with smtplib.SMTP_SSL(smtp_server, 465) as server:
 			server.login(self.email_user, self.email_pass)
-			server.send_message(msg)
+			server.sendmail(self.email_user, [self.email_to], msg.as_string())
 
 	def send_pushplus(self, title: str, content: str):
 		if not self.pushplus_token:

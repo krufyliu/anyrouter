@@ -313,8 +313,12 @@ async def main():
 	]
 
 	# 添加每个账号的详细信息
-	for content in notification_content:
-		email_content.append(content)
+	if notification_content:
+		for content in notification_content:
+			email_content.append(content)
+			email_content.append('')
+	else:
+		email_content.append('❌ 未获取到账号信息')
 		email_content.append('')
 
 	# 添加统计摘要
