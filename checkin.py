@@ -134,9 +134,16 @@ def get_user_info(client, headers):
 				user_data = data.get('data', {})
 				quota = round(user_data.get('quota', 0) / 500000, 2)
 				used_quota = round(user_data.get('used_quota', 0) / 500000, 2)
-				return f':money: Current balance: ${quota}, Used: ${used_quota}'
+				return {
+					'quota': quota,
+					'used_quota': used_quota,
+					'display_text': f'💰 Current balance: ${quota}, Used: ${used_quota}'
+				}
 	except Exception as e:
-		return f'[FAIL] Failed to get user info: {str(e)[:50]}...'
+		return {
+			'error': str(e),
+			'display_text': f'[FAIL] Failed to get user info: {str(e)[:50]}...'
+		}
 	return None
 
 
@@ -187,12 +194,12 @@ async def check_in_account(account_info, account_index):
 			'new-api-user': api_user,
 		}
 
-		user_info_text = None
+		# 获取签到前的用户信息
+		user_info_before = get_user_info(client, headers)
+		user_info_text = "信息获取失败"
 
-		user_info = get_user_info(client, headers)
-		if user_info:
-			print(user_info)
-			user_info_text = user_info
+		if user_info_before and 'display_text' in user_info_before:
+			print(user_info_before['display_text'])
 
 		print(f'[NETWORK] {account_name}: Executing check-in')
 
@@ -203,6 +210,30 @@ async def check_in_account(account_info, account_index):
 		response = client.post('https://anyrouter.top/api/user/sign_in', headers=checkin_headers, timeout=30)
 
 		print(f'[RESPONSE] {account_name}: Response status code {response.status_code}')
+
+		# 获取签到后的用户信息
+		user_info_after = get_user_info(client, headers)
+
+		# 构建详细的用户信息文本
+		if user_info_before and user_info_after:
+			# 如果两次都获取成功，显示详细对比
+			before_quota = user_info_before.get('quota', 0)
+			before_used = user_info_before.get('used_quota', 0)
+			after_quota = user_info_after.get('quota', 0)
+			after_used = user_info_after.get('used_quota', 0)
+
+			# 计算签到奖励
+			reward = after_quota - before_quota
+
+			user_info_text = f"""💰 签到前余额: ${before_quota}, 已用: ${before_used}
+💰 签到后余额: ${after_quota}, 已用: ${after_used}
+🎁 签到奖励: ${reward}"""
+		elif user_info_before:
+			# 只有签到前信息
+			user_info_text = user_info_before.get('display_text', '信息获取失败')
+		elif user_info_after:
+			# 只有签到后信息
+			user_info_text = user_info_after.get('display_text', '信息获取失败')
 
 		if response.status_code == 200:
 			try:
@@ -227,7 +258,9 @@ async def check_in_account(account_info, account_index):
 			return False, user_info_text
 
 	except Exception as e:
-		print(f'[FAILED] {account_name}: Error occurred during check-in process - {str(e)[:50]}...')
+		error_msg = f'Error occurred during check-in process - {str(e)[:50]}...'
+		print(f'[FAILED] {account_name}: {error_msg}')
+		user_info_text = f'❌ 处理异常: {str(e)[:50]}...'
 		return False, user_info_text
 	finally:
 		client.close()
@@ -267,26 +300,47 @@ async def main():
 			notification_content.append(f'[FAIL] Account {i + 1} exception: {str(e)[:50]}...')
 
 	# 构建通知内容
-	summary = [
-		'[STATS] Check-in result statistics:',
-		f'[SUCCESS] Success: {success_count}/{total_count}',
-		f'[FAIL] Failed: {total_count - success_count}/{total_count}',
+	time_info = f'⏰ 执行时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+
+	# 构建详细的邮件内容
+	email_content = [
+		'📧 AnyRouter 多账号自动签到报告',
+		'=' * 40,
+		time_info,
+		'',
+		'📊 账号详情:',
+		'-' * 20,
 	]
 
+	# 添加每个账号的详细信息
+	for content in notification_content:
+		email_content.append(content)
+		email_content.append('')
+
+	# 添加统计摘要
+	email_content.extend([
+		'📈 统计摘要:',
+		'-' * 20,
+		f'✅ 签到成功: {success_count}/{total_count}',
+		f'❌ 签到失败: {total_count - success_count}/{total_count}',
+		''
+	])
+
 	if success_count == total_count:
-		summary.append('[SUCCESS] All accounts check-in successful!')
+		email_content.append('🎉 所有账号签到成功！')
 	elif success_count > 0:
-		summary.append('[WARN] Some accounts check-in successful')
+		email_content.append('⚠️  部分账号签到成功')
 	else:
-		summary.append('[ERROR] All accounts check-in failed')
+		email_content.append('🚨 所有账号签到失败')
 
-	time_info = f'[TIME] Execution time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+	email_content.append('')
+	email_content.append('📱 本邮件由AnyRouter自动签到脚本发送')
 
-	notify_content = '\n\n'.join([time_info, '\n'.join(notification_content), '\n'.join(summary)])
+	formatted_content = '\n'.join(email_content)
 
-	print(notify_content)
+	print(formatted_content)
 
-	notify.push_message('AnyRouter Check-in Results', notify_content, msg_type='text')
+	notify.push_message('🤖 AnyRouter 签到结果通知', formatted_content, msg_type='text')
 
 	# 设置退出码
 	sys.exit(0 if success_count > 0 else 1)
