@@ -1,5 +1,6 @@
 .claude
-# .env
+# .env 文件现在会被提交到仓库
+# 注意：请确保 .env 文件中的敏感信息安全
 .venv
 __pycache__
 .pytest_cache
