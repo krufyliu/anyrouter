@@ -225,15 +225,16 @@ async def check_in_account(account_info, account_index):
 			# 计算签到奖励
 			reward = after_quota - before_quota
 
-			user_info_text = f"""💰 签到前余额: ${before_quota}, 已用: ${before_used}
+			user_info_text = f"""🆔 账户ID: {api_user}
+💰 签到前余额: ${before_quota}, 已用: ${before_used}
 💰 签到后余额: ${after_quota}, 已用: ${after_used}
 🎁 签到奖励: ${reward}"""
 		elif user_info_before:
 			# 只有签到前信息
-			user_info_text = user_info_before.get('display_text', '信息获取失败')
+			user_info_text = f"🆔 账户ID: {api_user}\n" + user_info_before.get('display_text', '信息获取失败')
 		elif user_info_after:
 			# 只有签到后信息
-			user_info_text = user_info_after.get('display_text', '信息获取失败')
+			user_info_text = f"🆔 账户ID: {api_user}\n" + user_info_after.get('display_text', '信息获取失败')
 
 		if response.status_code == 200:
 			try:
@@ -260,7 +261,7 @@ async def check_in_account(account_info, account_index):
 	except Exception as e:
 		error_msg = f'Error occurred during check-in process - {str(e)[:50]}...'
 		print(f'[FAILED] {account_name}: {error_msg}')
-		user_info_text = f'❌ 处理异常: {str(e)[:50]}...'
+		user_info_text = f'🆔 账户ID: {api_user}\n❌ 处理异常: {str(e)[:50]}...'
 		return False, user_info_text
 	finally:
 		client.close()
