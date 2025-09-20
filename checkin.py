@@ -8,6 +8,7 @@ import json
 import os
 import sys
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import httpx
 from dotenv import load_dotenv
@@ -269,8 +270,12 @@ async def check_in_account(account_info, account_index):
 
 async def main():
 	"""主函数"""
+	# 设置时区
+	tz = ZoneInfo('Asia/Shanghai')
+	start_time = datetime.now(tz)
+
 	print('[SYSTEM] AnyRouter.top multi-account auto check-in script started (using Playwright)')
-	print(f'[TIME] Execution time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+	print(f'[TIME] Execution time: {start_time.strftime("%Y-%m-%d %H:%M:%S")}')
 
 	# 加载账号配置
 	accounts = load_accounts()
@@ -291,17 +296,18 @@ async def main():
 			if success:
 				success_count += 1
 			# 收集通知内容
-			status = '[SUCCESS]' if success else '[FAIL]'
+			status = '✅' if success else '❌'
 			account_result = f'{status} Account {i + 1}'
 			if user_info:
 				account_result += f'\n{user_info}'
 			notification_content.append(account_result)
 		except Exception as e:
 			print(f'[FAILED] Account {i + 1} processing exception: {e}')
-			notification_content.append(f'[FAIL] Account {i + 1} exception: {str(e)[:50]}...')
+			notification_content.append(f'❌ Account {i + 1} exception: {str(e)[:50]}...')
 
 	# 构建通知内容
-	time_info = f'⏰ 执行时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+	end_time = datetime.now(tz)
+	time_info = f'⏰ 执行时间: {end_time.strftime("%Y-%m-%d %H:%M:%S %Z")}'
 
 	# 构建详细的邮件内容
 	email_content = [
@@ -332,10 +338,13 @@ async def main():
 	])
 
 	if success_count == total_count:
+		result_status = '成功'
 		email_content.append('🎉 所有账号签到成功！')
 	elif success_count > 0:
+		result_status = '部分成功'
 		email_content.append('⚠️  部分账号签到成功')
 	else:
+		result_status = '失败'
 		email_content.append('🚨 所有账号签到失败')
 
 	email_content.append('')
@@ -345,7 +354,10 @@ async def main():
 
 	print(formatted_content)
 
-	notify.push_message('🤖 AnyRouter 签到结果通知', formatted_content, msg_type='text')
+	# 创建动态标题
+	title = f'AnyRouter 签到{result_status} ({success_count}/{total_count}) - {end_time.strftime("%Y-%m-%d %H:%M:%S")}'
+
+	notify.push_message(title, formatted_content, msg_type='text')
 
 	# 设置退出码
 	sys.exit(0 if success_count > 0 else 1)

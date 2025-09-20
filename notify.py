@@ -39,7 +39,7 @@ class NotificationKit:
 		# 修复Content-Type问题：确保msg_type为'plain'或'html'
 		content_type = 'plain' if msg_type == 'text' else msg_type
 		msg = MIMEText(content, content_type, 'utf-8')
-		msg['From'] = Header(f'AnyRouter Assistant <{self.email_user}>', 'utf-8')
+		msg['From'] = Header(f'AnyRouter 签到助手 <{self.email_user}>', 'utf-8')
 		msg['To'] = Header(self.email_to, 'utf-8')
 		msg['Subject'] = Header(title, 'utf-8')
 
