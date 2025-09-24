@@ -366,7 +366,7 @@ async def main():
 
 	print(formatted_content)
 
-	# 只在有余额变化时发送邮件通知（任一账号奖励非0则发送）
+	# 发送邮件通知的条件：有余额变化 OR 有签到失败
 	# 使用容差避免浮点误差导致的误判
 	def _nonzero(r):
 		try:
@@ -374,16 +374,23 @@ async def main():
 		except Exception:
 			return False
 
-	should_notify = any(_nonzero(r) for r in rewards_per_account)
+	has_reward = any(_nonzero(r) for r in rewards_per_account)
+	has_failure = success_count < total_count
+	should_notify = has_reward or has_failure
 
 	if should_notify:
 		# 创建动态标题
 		title = f'AnyRouter 签到{result_status} ({success_count}/{total_count}) - 奖励${round(total_reward, 2)} - {end_time.strftime("%Y-%m-%d %H:%M:%S")}'
 
-		print(f'\n[NOTIFICATION] 检测到余额变化，总奖励: ${round(total_reward, 2)}，发送邮件通知')
+		reason = []
+		if has_reward:
+			reason.append(f"余额变化 ${round(total_reward, 2)}")
+		if has_failure:
+			reason.append(f"签到失败 {total_count - success_count}个账号")
+		print(f'\n[NOTIFICATION] 发送邮件通知 - 原因: {", ".join(reason)}')
 		notify.push_message(title, formatted_content, msg_type='text')
 	else:
-		print(f'\n[NOTIFICATION] 余额无变化，跳过邮件通知')
+		print(f'\n[NOTIFICATION] 所有账号签到成功且无余额变化，跳过邮件通知')
 		# 仍然输出到控制台，但不发送邮件
 
 	# 设置退出码
