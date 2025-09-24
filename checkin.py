@@ -149,7 +149,14 @@ def get_user_info(client, headers):
 
 
 async def check_in_account(account_info, account_index):
-	"""为单个账号执行签到操作"""
+	"""为单个账号执行签到操作
+
+	Returns:
+		tuple: (success: bool, user_info: str, reward: float)
+		       success - 签到是否成功
+		       user_info - 用户信息文本
+		       reward - 签到奖励金额
+	"""
 	account_name = f'Account {account_index + 1}'
 	print(f'\n[PROCESSING] Starting to process {account_name}')
 
@@ -159,19 +166,19 @@ async def check_in_account(account_info, account_index):
 
 	if not api_user:
 		print(f'[FAILED] {account_name}: API user identifier not found')
-		return False, None
+		return False, None, 0
 
 	# 解析用户 cookies
 	user_cookies = parse_cookies(cookies_data)
 	if not user_cookies:
 		print(f'[FAILED] {account_name}: Invalid configuration format')
-		return False, None
+		return False, None, 0
 
 	# 步骤1：获取 WAF cookies
 	waf_cookies = await get_waf_cookies_with_playwright(account_name)
 	if not waf_cookies:
 		print(f'[FAILED] {account_name}: Unable to get WAF cookies')
-		return False, None
+		return False, None, 0
 
 	# 步骤2：使用 httpx 进行 API 请求
 	client = httpx.Client(http2=True, timeout=30.0)
@@ -216,6 +223,7 @@ async def check_in_account(account_info, account_index):
 		user_info_after = get_user_info(client, headers)
 
 		# 构建详细的用户信息文本
+		reward = 0  # 默认奖励为0
 		if user_info_before and user_info_after:
 			# 如果两次都获取成功，显示详细对比
 			before_quota = user_info_before.get('quota', 0)
@@ -242,28 +250,28 @@ async def check_in_account(account_info, account_index):
 				result = response.json()
 				if result.get('ret') == 1 or result.get('code') == 0 or result.get('success'):
 					print(f'[SUCCESS] {account_name}: Check-in successful!')
-					return True, user_info_text
+					return True, user_info_text, reward
 				else:
 					error_msg = result.get('msg', result.get('message', 'Unknown error'))
 					print(f'[FAILED] {account_name}: Check-in failed - {error_msg}')
-					return False, user_info_text
+					return False, user_info_text, reward
 			except json.JSONDecodeError:
 				# 如果不是 JSON 响应，检查是否包含成功标识
 				if 'success' in response.text.lower():
 					print(f'[SUCCESS] {account_name}: Check-in successful!')
-					return True, user_info_text
+					return True, user_info_text, reward
 				else:
 					print(f'[FAILED] {account_name}: Check-in failed - Invalid response format')
-					return False, user_info_text
+					return False, user_info_text, reward
 		else:
 			print(f'[FAILED] {account_name}: Check-in failed - HTTP {response.status_code}')
-			return False, user_info_text
+			return False, user_info_text, reward
 
 	except Exception as e:
 		error_msg = f'Error occurred during check-in process - {str(e)[:50]}...'
 		print(f'[FAILED] {account_name}: {error_msg}')
 		user_info_text = f'🆔 账户ID: {api_user}\n❌ 处理异常: {str(e)[:50]}...'
-		return False, user_info_text
+		return False, user_info_text, 0
 	finally:
 		client.close()
 
@@ -289,12 +297,16 @@ async def main():
 	success_count = 0
 	total_count = len(accounts)
 	notification_content = []
+	total_reward = 0  # 总奖励金额
+	rewards_per_account = []  # 各账号奖励明细
 
 	for i, account in enumerate(accounts):
 		try:
-			success, user_info = await check_in_account(account, i)
+			success, user_info, reward = await check_in_account(account, i)
 			if success:
 				success_count += 1
+			total_reward += reward  # 累计奖励
+			rewards_per_account.append(reward)
 			# 收集通知内容
 			status = '✅' if success else '❌'
 			account_result = f'{status} Account {i + 1}'
@@ -354,10 +366,25 @@ async def main():
 
 	print(formatted_content)
 
-	# 创建动态标题
-	title = f'AnyRouter 签到{result_status} ({success_count}/{total_count}) - {end_time.strftime("%Y-%m-%d %H:%M:%S")}'
+	# 只在有余额变化时发送邮件通知（任一账号奖励非0则发送）
+	# 使用容差避免浮点误差导致的误判
+	def _nonzero(r):
+		try:
+			return abs(float(r)) > 1e-6
+		except Exception:
+			return False
 
-	notify.push_message(title, formatted_content, msg_type='text')
+	should_notify = any(_nonzero(r) for r in rewards_per_account)
+
+	if should_notify:
+		# 创建动态标题
+		title = f'AnyRouter 签到{result_status} ({success_count}/{total_count}) - 奖励${round(total_reward, 2)} - {end_time.strftime("%Y-%m-%d %H:%M:%S")}'
+
+		print(f'\n[NOTIFICATION] 检测到余额变化，总奖励: ${round(total_reward, 2)}，发送邮件通知')
+		notify.push_message(title, formatted_content, msg_type='text')
+	else:
+		print(f'\n[NOTIFICATION] 余额无变化，跳过邮件通知')
+		# 仍然输出到控制台，但不发送邮件
 
 	# 设置退出码
 	sys.exit(0 if success_count > 0 else 1)
