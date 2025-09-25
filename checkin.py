@@ -237,7 +237,7 @@ async def check_in_account(account_info, account_index):
 			user_info_text = f"""🆔 账户ID: {api_user}
 💰 签到前余额: ${before_quota}, 已用: ${before_used}
 💰 签到后余额: ${after_quota}, 已用: ${after_used}
-🎁 签到奖励: 💰{reward}"""
+🎁 签到奖励: ${reward}"""
 		elif user_info_before:
 			# 只有签到前信息
 			user_info_text = f"🆔 账户ID: {api_user}\n" + user_info_before.get('display_text', '信息获取失败')
