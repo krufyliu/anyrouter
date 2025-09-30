@@ -177,6 +177,8 @@ uv sync --dev
 # 安装 Playwright 浏览器
 playwright install chromium
 
+# 激活uv环境
+source .venv/bin/activate
 # 按 .env.example 创建 .env
 uv run checkin.py
 ```
