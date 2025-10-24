@@ -183,6 +183,9 @@ class NotificationKit:
 			client.post(self.weixin_webhook, json=data)
 
 	def send_ntfy(self,title: str, content: str):
+		if not self.ntfy_server:
+			raise ValueError('Ntfy server not configured')
+			
 		with httpx.Client(timeout=30.0) as client:
 			client.post(self.ntfy_server, data=f'{title}\n{content}'.encode(encoding='utf-8'))
 
