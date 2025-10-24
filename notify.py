@@ -30,6 +30,7 @@ class NotificationKit:
 		self.dingding_webhook = os.getenv('DINGDING_WEBHOOK')
 		self.feishu_webhook = os.getenv('FEISHU_WEBHOOK')
 		self.weixin_webhook = os.getenv('WEIXIN_WEBHOOK')
+		self.ntfy_server = os.getenv('NTFY_SERVER')
 
 	def send_email(self, title: str, content: str, msg_type: Literal['text', 'html'] = 'text'):
 		# 发送前重新加载配置，确保获取最新的环境变量
@@ -181,6 +182,10 @@ class NotificationKit:
 		with httpx.Client(timeout=30.0) as client:
 			client.post(self.weixin_webhook, json=data)
 
+	def send_ntfy(self,title: str, content: str):
+		with httpx.Client(timeout=30.0) as client:
+			client.post(self.ntfy_server, data=f'{title}\n{content}'.encode(encoding='utf-8'))
+
 	def push_message(self, title: str, content: str, msg_type: Literal['text', 'html'] = 'text'):
 		notifications = [
 			('Email', lambda: self.send_email(title, content, msg_type)),
@@ -189,6 +194,7 @@ class NotificationKit:
 			('DingTalk', lambda: self.send_dingtalk(title, content)),
 			('Feishu', lambda: self.send_feishu(title, content)),
 			('WeChat Work', lambda: self.send_wecom(title, content)),
+			('Ntfy', lambda: self.send_ntfy(title, content)),
 		]
 
 		for name, func in notifications:
