@@ -60,6 +60,7 @@ jobs:
         SERVERPUSHKEY: ${{ secrets.SERVERPUSHKEY }}
         FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
         WEIXIN_WEBHOOK: ${{ secrets.WEIXIN_WEBHOOK }}
+        NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
       run: |
         uv run checkin.py
 
