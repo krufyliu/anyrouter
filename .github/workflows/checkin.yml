@@ -69,3 +69,15 @@ jobs:
       run: |
         echo "签到任务执行完成"
         echo "时间: $(Get-Date)"
+        
+    - name: keep alive
+      uses: liskin/gh-workflow-keepalive@v1 # using the workflow with default settings
+      
+    - name: delete workflow runs
+      uses: Mattraks/delete-workflow-runs@v2
+      with:
+        token: ${{ github.token }}
+        repository: ${{ github.repository }}
+        retain_days: 7
+        keep_minimum_runs: 10
+        delete_run_by_conclusion_pattern: success
